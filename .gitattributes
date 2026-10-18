@@ -1,0 +1,7 @@
+# Automatically detect text files and normalize line endings
+* text=auto
+
+# Git LFS - Trained machine learning models
+*.keras filter=lfs diff=lfs merge=lfs -text
+*.h5 filter=lfs diff=lfs merge=lfs -text
+*.hdf5 filter=lfs diff=lfs merge=lfs -text

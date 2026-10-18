@@ -1,0 +1,93 @@
+
+# Python bytecode and cache
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+Edge-Image-Classification-updated.venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python packaging and builds
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+MANIFEST
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE and editor files
+.vscode/
+.idea/
+.spyderproject
+.spyproject
+.ropeproject
+.cursorindexingignore
+.cursorignore
+
+# Jupyter and IPython
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# Static analysis and type checking
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.dmypy.json
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dataset
+
+# Original Intel Image Classification images
+data/seg_train/
+data/seg_test/
+
+# Other possible dataset folders
+data/seg_pred/
+
+
