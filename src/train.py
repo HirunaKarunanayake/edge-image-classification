@@ -40,7 +40,7 @@ MIN_EPOCHS = 20  # assignment minimum; EarlyStopping never stops before this
 RUN_CONFIG = {
     ("A", "adam"):         {"lr": 1e-3, "epochs": 20},
     ("A", "sgd"):          {"lr": 5e-3, "epochs": 20},
-    ("A", "sgd_momentum"): {"lr": 1e-2, "epochs": 20},
+    ("A", "sgd_momentum"): {"lr": 5e-3, "epochs": 20},
     ("B", "adam"):         {"lr": 1e-3, "epochs": 20},
     ("B", "sgd"):          {"lr": 1e-2, "epochs": 20},
     ("B", "sgd_momentum"): {"lr": 1e-2, "epochs": 20},
