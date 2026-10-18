@@ -1,68 +1,102 @@
+"""Data pipeline: reads the fixed split from results/split.csv and builds tf.data datasets.
+
+Every image is decoded as RGB, resized to IMG_SIZE and scaled to the range [0, 1].
+
+Run from the project root to print one batch from each subset:
+    python src/data.py
+"""
 import os
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+# These two settings must be made before TensorFlow is imported
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "1"  # faster maths on CPU
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"   # hide TensorFlow info and warning messages
 
 import csv
+from pathlib import PureWindowsPath
+
 import tensorflow as tf
 
-IMG_SIZE = (64, 64)
+IMG_SIZE = (64, 64)  # every image is resized to 64x64 pixels
 BATCH_SIZE = 32
-NUM_CLASSES = 6
-AUTOTUNE = tf.data.AUTOTUNE
+SEED = 42
+
+# Class names in label order (label 0 is "buildings", label 5 is "street").
+# This matches the alphabetical folder order used by split_data.py.
+CLASSES = ["buildings", "forest", "glacier", "mountain", "sea", "street"]
+NUM_CLASSES = len(CLASSES)
+
+AUTOTUNE = tf.data.AUTOTUNE  # let TensorFlow choose how much work to do in parallel
+SPLIT_CSV = os.path.join("results", "split.csv")
 
 
-def read_split(csv_path=os.path.join("results", "split.csv")):
-    data = {"train": ([], []), "val": ([], []), "test": ([], [])}
-    with open(csv_path) as fh:
-        for row in csv.DictReader(fh):
-            # split.csv was written on Windows; make the path work on any OS
-            path = row["path"].replace("\\", "/").replace("/", os.sep)
-            data[row["subset"]][0].append(path)
-            data[row["subset"]][1].append(int(row["label"]))
+def read_split(csv_path=SPLIT_CSV):
+    """Read split.csv and group the image paths and labels by subset.
+
+    Returns {"train": (paths, labels), "val": (paths, labels), "test": (paths, labels)}.
+    """
+    data = {subset: ([], []) for subset in ["train", "val", "test"]}
+    with open(csv_path) as csv_file:
+        for row in csv.DictReader(csv_file):
+            # split.csv was written on Windows, so its paths use Windows separators.
+            # Split the path into folder names and rejoin them for this operating system.
+            folders = PureWindowsPath(row["path"]).parts
+            path = os.path.join(*folders)
+
+            paths, labels = data[row["subset"]]
+            paths.append(path)
+            labels.append(int(row["label"]))
     return data
 
 
 def load_image(path, label):
-    img = tf.io.read_file(path)
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, IMG_SIZE)
-    img = tf.cast(img, tf.float32) / 255.0
-    return img, label
+    """Load one JPEG file as a float image with values in [0, 1]."""
+    image = tf.io.read_file(path)
+    image = tf.image.decode_jpeg(image, channels=3)  # always 3 colour channels (RGB)
+    image = tf.image.resize(image, IMG_SIZE)
+    image = tf.cast(image, tf.float32) / 255.0       # pixel values 0..255 become 0..1
+    return image, label
 
 
-def make_ds(paths, labels, training):
-    ds = tf.data.Dataset.from_tensor_slices((paths, labels))
-    ds = ds.map(load_image, num_parallel_calls=AUTOTUNE).cache()
+def make_dataset(paths, labels, training):
+    """Build a batched dataset. Only the training data is shuffled."""
+    dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
+    # Load images in parallel, and keep them in memory after the first epoch
+    dataset = dataset.map(load_image, num_parallel_calls=AUTOTUNE).cache()
     if training:
-        ds = ds.shuffle(len(paths), seed=42)
-    return ds.batch(BATCH_SIZE).prefetch(AUTOTUNE)
+        dataset = dataset.shuffle(len(paths), seed=SEED)  # new order every epoch
+    # prefetch prepares the next batch while the model is busy with the current one
+    return dataset.batch(BATCH_SIZE).prefetch(AUTOTUNE)
 
 
 def augmentation():
     """Random flips, rotations and zooms, applied only while training.
 
-    Keras turns these layers into no-ops at validation/test/inference time, so the
+    Keras switches these layers off at validation, test and inference time, so the
     model sees a slightly different version of every training image each epoch
-    (less memorisation) while evaluation stays deterministic. They have no weights,
-    so they do not change the parameter count.
+    (less memorising) while evaluation stays the same every time. They have no
+    weights, so they do not change the parameter count.
     """
     return tf.keras.Sequential([
-        tf.keras.layers.RandomFlip("horizontal", seed=42),   # scenes are left-right symmetric
-        tf.keras.layers.RandomRotation(0.05, seed=42),       # up to +/-18 degrees
-        tf.keras.layers.RandomZoom(0.1, seed=42),            # up to +/-10 %
+        tf.keras.layers.RandomFlip("horizontal", seed=SEED),  # a mirrored scene is still the same scene
+        tf.keras.layers.RandomRotation(0.05, seed=SEED),      # rotate up to 18 degrees either way
+        tf.keras.layers.RandomZoom(0.1, seed=SEED),           # zoom in or out by up to 10 percent
     ], name="augmentation")
 
 
 def get_datasets():
-    d = read_split()
-    train = make_ds(*d["train"], training=True)
-    val = make_ds(*d["val"], training=False)
-    test = make_ds(*d["test"], training=False)
+    """Return the (train, val, test) datasets used by every training script."""
+    split = read_split()
+    train = make_dataset(*split["train"], training=True)
+    val = make_dataset(*split["val"], training=False)
+    test = make_dataset(*split["test"], training=False)
     return train, val, test
 
 
 if __name__ == "__main__":
+    # Quick check: shape, value range and first 8 labels of one batch from each subset
     train, val, test = get_datasets()
-    for name, ds in [("train", train), ("val", val), ("test", test)]:
-        x, y = next(iter(ds))
-        print(name, x.shape, x.dtype, float(tf.reduce_min(x)), float(tf.reduce_max(x)), y[:8].numpy())
+    for name, dataset in [("train", train), ("val", val), ("test", test)]:
+        images, labels = next(iter(dataset))
+        smallest = float(tf.reduce_min(images))
+        largest = float(tf.reduce_max(images))
+        print(name, images.shape, images.dtype, smallest, largest, labels[:8].numpy())
