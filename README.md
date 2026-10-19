@@ -270,7 +270,7 @@ A CPU is sufficient to execute the project, although training can take a conside
 ### Step 1 – Clone the repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/HirunaKarunanayake/edge-image-classification.git
 cd edge-image-classification
 ```
 
